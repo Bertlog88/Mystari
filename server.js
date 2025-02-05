@@ -1,11 +1,17 @@
 // Import dependencies
 const express = require("express");
 const cors = require("cors");
-const mongoose = require("mongoose");
+const mongoose = require('mongoose');
 const passport = require("passport");
 const session = require("express-session");
+const cookieParser = require("cookie-parser"); // Import cookie-parser
 const GoogleStrategy = require("passport-google-oauth20").Strategy;
 require("dotenv").config();
+
+// Import MongoDB connection function
+const connectDB = require("./config/db"); // Import the connectDB function
+const authRoutes = require("./routes/auth"); // Import the auth routes
+const authMiddleware = require("./middleware/authMiddleware"); // Import the authentication middleware
 
 // Initialize Express app
 const app = express();
@@ -13,18 +19,13 @@ const app = express();
 // Middleware
 app.use(cors()); // Enable CORS
 app.use(express.json()); // Parse JSON requests
+app.use(cookieParser()); // Use cookie-parser to parse cookies in requests
 app.use(session({ secret: "secret", resave: false, saveUninitialized: true }));
 app.use(passport.initialize());
 app.use(passport.session());
 
 // Connect to MongoDB
-mongoose
-  .connect(process.env.MONGO_URI, {
-    useNewUrlParser: true,
-    useUnifiedTopology: true,
-  })
-  .then(() => console.log("🔥 Connected to MongoDB!"))
-  .catch((err) => console.error("❌ MongoDB Connection Error:", err));
+connectDB(); // Use the connectDB function to connect to MongoDB
 
 // Define Player schema and model
 const playerSchema = new mongoose.Schema({
@@ -40,7 +41,7 @@ const playerSchema = new mongoose.Schema({
 
 const Player = mongoose.model("Player", playerSchema);
 
-// OAuth with Google
+// OAuth with Google (You can keep this part if needed)
 passport.use(
   new GoogleStrategy(
     {
@@ -80,8 +81,11 @@ app.get("/", (req, res) => {
   res.send("Mystari API is running");
 });
 
-// Get all players
-app.get("/api/players", async (req, res) => {
+// Register the authentication routes
+app.use('/api/auth', authRoutes); // Register the auth routes here
+
+// Get all players (Protected route)
+app.get("/api/players", authMiddleware, async (req, res) => {
   try {
     const players = await Player.find();
     res.json(players);
@@ -91,8 +95,8 @@ app.get("/api/players", async (req, res) => {
   }
 });
 
-// Update player (Fixed)
-app.put("/api/players/:id", async (req, res) => {
+// Update player (Protected route)
+app.put("/api/players/:id", authMiddleware, async (req, res) => {
   try {
     const playerId = req.params.id.trim(); // Trim any extra spaces or newlines
 
@@ -128,4 +132,3 @@ const PORT = process.env.PORT || 5000;
 app.listen(PORT, () => {
   console.log(`🚀 Server running on port ${PORT}`);
 });
-
